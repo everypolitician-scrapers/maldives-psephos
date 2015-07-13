@@ -1,25 +1,43 @@
-# This is a template for a Ruby scraper on morph.io (https://morph.io)
-# including some code snippets below that you should find helpful
+#!/bin/env ruby
+# encoding: utf-8
 
-# require 'scraperwiki'
-# require 'mechanize'
-#
-# agent = Mechanize.new
-#
-# # Read in a page
-# page = agent.get("http://foo.com")
-#
-# # Find somehing on the page using css selectors
-# p page.at('div.content')
-#
-# # Write out to the sqlite database using scraperwiki library
-# ScraperWiki.save_sqlite(["name"], {"name" => "susan", "occupation" => "software developer"})
-#
-# # An arbitrary query against the database
-# ScraperWiki.select("* from data where 'name'='peter'")
+require 'scraperwiki'
+require 'open-uri'
+require 'colorize'
+require 'csv'
 
-# You don't have to do things with the Mechanize or ScraperWiki libraries.
-# You can use whatever gems you want: https://morph.io/documentation/ruby
-# All that matters is that your final data is written to an SQLite database
-# called "data.sqlite" in the current working directory which has at least a table
-# called "data".
+require 'pry'
+require 'open-uri/cached'
+OpenURI::Cache.cache_path = '.cache'
+
+def detabulate(header, rows)
+  headings = header.split(/[[:space:]]+/)
+  locn = headings.map { |h| header.index h }
+  unpackmap = (1..locn.size - 1).to_a.map { |i| "A#{locn[i] - locn[i-1]}" }.join + "A*"
+  rows.each_line.map { |l| l.chomp.unpack(unpackmap).map(&:strip) }.unshift(headings)
+end
+
+def table_as_csv(header, rows)
+  detabbed = detabulate(header, rows)
+  as_csv = detabbed.map { |l| l.to_csv }.join ""
+  CSV.parse(as_csv, headers: true, header_converters: :symbol )
+end
+  
+
+
+@file = 'http://psephos.adam-carr.net/countries/m/maldives/maldives20141.txt'
+file = open(@file)
+paras = file.readlines("\r\n\r\n")
+
+paras.select { |p| p =~ /^Candidate/ }.each do |result|
+  area, headers, results, total = result.split(/^[=\-]+\s*$/)
+  csv = table_as_csv(headers.sub('%', 'percent').strip, results.strip)
+  winner = csv.sort_by { |row| row[:votes].gsub(',','').to_i }.last
+  data = { 
+    name: winner[:candidate].strip,
+    area: area.strip,
+    party: winner[:party].strip,
+  }
+  ScraperWiki.save_sqlite([:name], data)
+end
+
