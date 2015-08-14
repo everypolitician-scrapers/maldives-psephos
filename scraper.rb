@@ -37,6 +37,7 @@ paras.select { |p| p =~ /^Candidate/ }.each do |result|
     name: winner[:candidate].strip,
     area: area.strip,
     party: winner[:party].strip,
+    term: '2014',
   }
   ScraperWiki.save_sqlite([:name], data)
 end
